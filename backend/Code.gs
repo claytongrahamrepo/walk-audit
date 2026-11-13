@@ -1,4 +1,8 @@
 /**
+ * @OnlyCurrentDoc
+ * (The line above limits this script to the one spreadsheet it lives in,
+ * instead of every spreadsheet in the account.)
+ *
  * Walk Audit: shared-sheet backend.
  *
  * This script lives inside a Google Sheet (Extensions > Apps Script). The walk
