@@ -1,5 +1,7 @@
 # Walk Audit (East Providence)
 
+**Open it:** https://claytongrahamrepo.github.io/walk-audit/
+
 A phone web page that replaces the paper worksheets in a walk audit. No app to
 install and no login. People open a link, answer the worksheets, pin problem
 spots on a map with photos, and their answers land in one shared dataset.
@@ -112,9 +114,9 @@ account.
 
 ## Hosting
 
-Any static web host with HTTPS works (the camera and location need HTTPS).
-GitHub Pages is the simplest: push this folder to a public repository and turn
-on Pages.
+It is served by GitHub Pages from the `main` branch of this repository. A push
+to `main` updates the live page within a minute or two. Any other static web
+host with HTTPS would also work (the camera and location need HTTPS).
 
 ## Testing locally
 
