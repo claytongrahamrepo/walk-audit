@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Walk Audit</title>
+<meta name="description" content="A paperless walk audit form. Record sidewalk and crossing conditions on your phone.">
+<meta name="theme-color" content="#14532d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header id="bar">
+  <button type="button" id="menuBtn" data-act="menu" aria-label="Menu">&#9776;</button>
+  <div id="barTitle">Walk Audit</div>
+  <div id="syncState" role="status" aria-live="polite"></div>
+</header>
+
+<main id="view" tabindex="-1"><p class="loading">Loading&hellip;</p></main>
+
+<div id="mapWrap" hidden>
+  <div id="map" aria-label="Map of your notes"></div>
+  <div id="mapTools">
+    <button type="button" class="mapbtn" data-act="locate">My location</button>
+    <button type="button" class="mapbtn" data-act="group" id="groupBtn" hidden aria-pressed="false">Group&rsquo;s notes</button>
+  </div>
+  <div id="mapLegend">
+    <span><i class="pin problem">!</i> Problem</span>
+    <span><i class="pin good">&#10003;</i> Good</span>
+    <span><i class="pin idea">+</i> Idea</span>
+  </div>
+</div>
+
+<nav id="tabs" hidden aria-label="Sections">
+  <a href="#/" data-tab="home">Worksheets</a>
+  <a href="#/map" data-tab="map">Map</a>
+  <button type="button" id="addBtn" data-act="add"><span>+ Map note</span></button>
+  <a href="#/summary" data-tab="summary">Summary</a>
+</nav>
+
+<div id="modal" hidden role="dialog" aria-modal="true"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<noscript><p style="padding:16px">This tool needs JavaScript turned on.</p></noscript>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="config.js"></script>
+<script src="js/forms.js"></script>
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
