@@ -1,4 +1,9 @@
-# Connect the walk audit tool to a shared Google Sheet
+# Optional: connect the walk audit tool to a shared Google Sheet
+
+**You do not need this.** The tool works with no sheet: each person sends
+themselves a copy, and a walk leader combines the copies with Team totals.
+Connect a sheet only if a group wants answers pooled automatically, and accepts
+that one person then holds everyone's data.
 
 About ten minutes, once. After this, every participant's answers and map notes
 land in one sheet that you own.

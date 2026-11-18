@@ -141,6 +141,18 @@ textarea { resize: vertical; min-height: 3.2em; }
 .tips li { margin-bottom: 6px; }
 h2.first { margin-top: 0; }
 
+/* where a note is: filled in by the phone */
+.where { border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px 12px; margin: 0 0 18px; background: #fff; }
+.where b { display: block; font-size: 1.05rem; }
+.where small { display: block; color: var(--muted); font-size: .88rem; margin: 2px 0 8px; }
+.where.ok { border-color: var(--yes); } .where.ok b { color: var(--yes); }
+.where.warn { border-color: #b45309; background: #fffaf0; } .where.warn b { color: #92400e; }
+.where.wait b { color: var(--muted); }
+.where .btn { margin-top: 0; }
+.pick.slim { margin: 14px 0; }
+.copybtn { margin-top: 6px; }
+.menu button b + small, .menu button small { margin-top: 2px; }
+
 /* team totals */
 .codeRow { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 16px; }
 .codeRow .fld { flex: 1; margin: 0; }
@@ -178,7 +190,7 @@ details .sum { border: 0; border-top: 1px solid var(--line); border-radius: 0; f
 .pinwrap { background: none; border: 0; }
 .pin { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1.1rem; border: 2.5px solid #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, .5); }
 .pin.problem { background: #b42318; } .pin.good { background: #166534; } .pin.idea { background: #1d4ed8; }
-#pinMap { height: 230px; border: 1.5px solid #8b958f; border-radius: 12px; margin-bottom: 8px; background: #dfe5e1; z-index: 0; }
+#pinMap { height: 170px; border: 1.5px solid #8b958f; border-radius: 12px; margin-bottom: 8px; background: #dfe5e1; z-index: 0; }
 .leaflet-container { font: inherit; font-size: .75rem; }
 
 /* bottom bar: three sections and the add-note button. The button sits in the

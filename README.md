@@ -1,28 +1,35 @@
-# Walk Audit (East Providence)
+# Walk Audit
 
 **Open it:** https://claytongrahamrepo.github.io/walk-audit/
 
-A phone web page that replaces the paper worksheets in a walk audit. No app to
-install and no login. People open a link, answer the worksheets, pin problem
-spots on a map with photos, and their answers land in one shared dataset.
+A phone web page that replaces the paper worksheets in a walk audit, for any
+community. No app to install, no login, and nobody collects the data: each
+person's work stays on their own phone until they send a copy to someone.
 
 It follows the worksheets in the **AARP Walk Audit Tool Kit**
-(AARP.org/WalkAudit): the same eleven worksheets in the same order, the same
-items, the same Yes / No / Other answers, and the same Great / Acceptable /
-Mixed / Poor rating. The question wording is a paraphrase, not AARP's text,
-because the tool kit is copyrighted. This is an independent tool; AARP did not
-make or endorse it.
+(AARP.org/WalkAudit): the same worksheets in the same order, the same items,
+the same Yes / No / Other answers, and the same Great / Acceptable / Mixed /
+Poor rating. The question wording is a paraphrase, not AARP's text, because the
+tool kit is copyrighted. This is an independent tool; AARP did not make or
+endorse it.
 
 ## How a walk audit runs with it
 
-1. **Organizer** opens the page, Menu > *Make an audit link*, enters the route,
-   and sends the link (text, email, or a printed QR code made from the link).
-2. **Each participant** opens the link on their phone. The route is filled in.
-   They tap *Start audit*.
-3. On the walk they use the worksheets that fit and skip the rest:
+1. **Walk leader** (optional): Menu > *Make an audit link*. Enter the community
+   and route, then send the link by text or email. It fills in the details for
+   everyone. One person walking alone can skip this and just open the page.
+2. **Each person** opens the link on their phone and taps *Start audit*. The
+   phone asks to use its location; say yes.
+3. On the walk:
+   - **+ Note here** marks the spot where you are standing. The pin is placed by
+     the phone's location, so there is nothing to position by hand. Add a
+     photo, a type (problem / good feature / idea), a topic and a note. If the
+     pin is off, drag it.
+   - The **Map** follows you as you walk and shows your notes.
+   - The **worksheets** are the AARP checklists. Use the ones that fit.
    | # | Worksheet | What it records |
    |---|---|---|
-   | 1 | Make a Map | Pins with photo, type (problem / good / idea), topic, note |
+   | 1 | Make a Map | Pins with photo, type, topic, note |
    | 2 | Who's Using the Street | Tap counters by age, how, and reason; optional car count; first and last tap times |
    | 3 | Sidewalks | 9 items + rating |
    | 4 | Streets and Crossings | Speed, lanes, 7 street items, 6 signal items (with a tap timer for signal times) + rating |
@@ -31,105 +38,67 @@ make or endorse it.
    | 7 | Build a Better Block | 30 possible improvements to pick from |
    | 8 | Winter Weather | 16 items + rating |
    | 9 | Summary | Yes / No totals and ratings, filled in automatically |
+4. **Finish audit**, then **Send a copy**. The phone's share menu opens with one
+   file attached. Send it to yourself, and to the walk leader if there is one.
+5. **Walk leader:** open *Team totals*, choose the files people sent, and the
+   page adds everyone up: how the ratings spread, Yes / No / Other per
+   worksheet and per item, the items most often answered No, signal times,
+   counts, the improvements people picked, and map notes by type. *Download the
+   combined data* gives one zip with everyone's answers and photos as tables.
+   This happens on the leader's own device. Nothing is uploaded.
 
-   AARP's two combined "Sidewalks, Streets and Crossings" sheets are the same
-   items as sheets 3 and 4, so they are not repeated. The audit type
-   (walking route or single location) is asked at the start instead.
-4. They tap **Finish audit** on the Summary screen.
-5. **Team totals** (Summary screen, the menu, or the organizer's results link)
-   adds up everyone's answers for the audit code: how the ratings spread, Yes /
-   No / Other per worksheet and per item, the items most often answered No,
-   signal times, counts, the improvements people picked, and map notes by type.
-   It can be downloaded as CSV tables for the report. It shows no names and no
-   written notes.
+Menu > *Before you go* covers the tool kit's planning steps and what to bring.
 
-Menu > *Before you go* covers the tool kit's planning steps (where, when, who,
-agree how to record) and what to bring.
+## The files
 
-Everything saves on the phone as they go. A lost signal does not lose work; it
-sends when the phone is back online.
+**A person's copy** (`walk-audit_<place>_<date>.html`) is one web page with
+their answers, notes, map notes and photos. It opens in any browser and can be
+printed. It also carries the same data in a form this tool can read, which is
+how *Team totals* combines copies.
 
-## The dataset
+**Data tables** (*Download data tables*, or the leader's combined zip):
 
-With the shared Google Sheet connected (see `backend/SETUP.md`):
-
-- **Audits**: one row per person per audit, about 250 columns. Header fields,
-  each worksheet's Yes / No / Other totals and rating, then every item.
-  `sw3` is Sidewalks item 3; `sw3_note` is the note on it.
-- **Observations**: one row per map note with `lat`, `lon`, `kind`, `topic`,
-  `note`, `worksheet_item`, `photo_url`. Download this tab as CSV and add it to
-  ArcGIS, QGIS, or Google My Maps.
-- **Codebook**: what each column means.
-- Photos in a Drive folder.
-
-Without the sheet, each person can use Menu > *Download my data* to get a zip
-(`audits.csv`, `responses_long.csv`, `map_notes.csv`, `map_notes.geojson`,
-`codebook.csv`, `photos/`) and send it to the organizer.
+    audits.csv            one row per person, about 250 columns
+                          (sw3 = Sidewalks item 3; sw3_note = the note on it)
+    responses_long.csv    one row per checklist answer
+    map_notes.csv         one row per map note, with lat and lon
+    map_notes.geojson     the same, for ArcGIS, QGIS or Google My Maps
+    codebook.csv          what every column means
+    photos/               the photos
+    team/                 the team totals as small tables (combined zip only)
 
 ## Limits to keep in mind when reading the data
 
 - **It records what people noticed, not everything that is there.** A block
-  with no pins may be fine, or nobody may have looked. The route field tells
-  you where people walked; it is not a survey of every block.
-- **Phone location is rough.** Expect 5 to 15 m outdoors, worse near tall
-  buildings. That is often the wrong side of the street. `accuracy_m` gives the
-  phone's own estimate. People can drag the pin; `location_source` says whether
-  they did.
-- **Ratings are opinions.** Two people on the same walk will differ. Report the
-  spread, not just an average. Team totals shows the spread for that reason.
+  with no pins may be fine, or nobody may have looked.
+- **Phone location is rough.** Expect 5 to 15 m outdoors, worse beside tall
+  buildings. That is often the wrong side of the street. The form says how good
+  the fix is and asks the person to wait or drag the pin when it is poor.
+  `accuracy_m` records the phone's own estimate; `location_source` says whether
+  the person moved the pin.
+- **Pooling depends on people sending their copy.** Some will forget. A phone
+  lost or wiped before sending takes that audit with it.
+- **Ratings are opinions.** Two people on the same walk will differ. Team
+  totals shows the spread for that reason, as counts, never percentages.
 - **Team totals with few people are rough.** "3 of 4 said No" is four people's
-  view, not a measurement. The screen gives counts, never percentages.
-- **Team counts can double-count.** If several people counted the same spot at
-  the same time, the summed count includes the same passers-by more than once.
-  Use one person's row from the sheet.
-- **Counts of people are tallies by eye**, and the same person can be counted
-  twice. AARP's worksheet says the same.
-- **The shared sheet accepts posts from anyone who has the link.** The key in
-  `config.js` keeps out stray bots only. Check the data before you publish it.
+  view, not a measurement.
+- **Counts of people are tallies by eye**, and summed counts can count the same
+  passers-by twice if several people counted the same spot.
+- **A copy is only as trustworthy as its sender.** Team totals adds up whatever
+  files it is given.
 - Text that starts with `=`, `+`, `-` or `@` gets a leading apostrophe in the
-  CSV export so a spreadsheet will not run it as a formula.
+  CSV tables so a spreadsheet will not run it as a formula.
 
-## Files
+## Not tested, or not known
 
-    index.html, styles.css   the page
-    config.js                community name, map center, shared-sheet URL and key
-    js/forms.js              the worksheets (edit wording here)
-    js/data.js               data model and column layout
-    js/store.js              saving on the phone
-    js/sync.js               sending to the shared sheet
-    js/export.js             zip / CSV / GeoJSON export
-    js/app.js                screens
-    sw.js                    lets the page open with no signal
-    backend/Code.gs          Google Apps Script for the shared sheet
-    backend/SETUP.md         how to connect the sheet
-    tools/mock-sheet.mjs     local stand-in for the sheet; runs the real Code.gs
-    tools/fake-google.mjs    imitation of Google Sheets and Drive for the two above
-    tools/test-backend.mjs   checks Code.gs logic:      node tools/test-backend.mjs
-    tools/test-totals.mjs    checks team-totals math:   node tools/test-totals.mjs
-    vendor/leaflet           map library (Leaflet 1.9.4, BSD-2-Clause)
-
-Map tiles come from OpenStreetMap's public tile server, which is fine for a
-community tool with light use. If use grows, switch to a tile provider with an
-account.
-
-## Hosting
-
-It is served by GitHub Pages from the `main` branch of this repository. A push
-to `main` updates the live page within a minute or two. Any other static web
-host with HTTPS would also work (the camera and location need HTTPS).
-
-## Testing locally
-
-    python3 -m http.server 8767 --bind 127.0.0.1
-    node tools/mock-sheet.mjs 8768
-
-Then open
-`http://localhost:8767/?s=http%3A%2F%2Flocalhost%3A8768%2F&k=test`.
-The `s` and `k` overrides work on localhost only.
+- On a real phone: the camera, real GPS, and the share menu. Testing so far is
+  in a desktop browser at phone size, with simulated location and sharing.
+- Whether some email services flag or strip an `.html` attachment. If one does,
+  text message or AirDrop still works, and *Save the file* is always there.
 
 ## Where it departs from the AARP tool kit
 
-Checked against the worksheets and the tool kit's Steps 1 to 3 on 2026-11-13.
+Checked against the worksheets and the tool kit's Steps 1 to 3.
 
 - Wording is paraphrased (copyright). Item order and numbering are AARP's.
 - Signal times are entered in seconds, not minutes and seconds.
@@ -137,18 +106,56 @@ Checked against the worksheets and the tool kit's Steps 1 to 3 on 2026-11-13.
   Sidewalks and Streets and Crossings, so there are two ratings, not one.
 - The car counter and the count times are additions. The tool kit lists
   counting cars as an activity, but its worksheet counts people only.
-- The map is a live street map with pins, not a hand-drawn sketch. There is no
-  pin type for landmarks; the base map already shows streets, schools and shops.
+- The map is a live street map with pins, not a hand-drawn sketch.
 - Photos only. Video and sound are not captured.
-- The app collects the data and adds up a team's answers. It does not write
+- The tool collects the data and adds up a team's answers. It does not write
   the report the tool kit describes.
+
+## Optional: a shared Google Sheet
+
+A group that wants answers pooled automatically, with no files to send, can
+connect one Google Sheet (`backend/SETUP.md`, about ten minutes, once). Then
+every participant's answers land in the sheet as they go, the map can show the
+group's notes live, and Team totals reads from the sheet. The cost is that one
+person holds everyone's data. It is off unless `config.js` names a sheet.
+
+## Files
+
+    index.html, styles.css   the page
+    config.js                optional settings: a fixed community, a shared sheet
+    js/forms.js              the worksheets (edit wording here)
+    js/data.js               data model, column layout, team totals
+    js/store.js              saving on the phone
+    js/report.js             a person's copy: writing it and reading it back
+    js/export.js             zip / CSV / GeoJSON
+    js/sync.js               sending to a shared sheet, if one is set
+    js/app.js                screens
+    sw.js                    lets the page open with no signal
+    backend/                 the optional Google Sheet script and its setup steps
+    tools/                   tests and a local stand-in for the sheet
+    vendor/leaflet           map library (Leaflet 1.9.4, BSD-2-Clause)
+
+Map pictures come from OpenStreetMap's public tile server, which is fine for
+light use. If use grows, switch to a tile provider with an account.
+
+## Hosting
+
+It is served by GitHub Pages from the `main` branch of this repository. A push
+to `main` updates the live page within a minute or two. Any static web host
+with HTTPS would also work (the camera and location need HTTPS). To run your
+own copy, fork the repository and turn on Pages.
+
+## Testing
+
+    node tools/test-report.mjs     a person's copy: written, read back, and safe
+    node tools/test-totals.mjs     team totals arithmetic
+    node tools/test-backend.mjs    the optional Google Sheet script
+    python3 -m http.server 8767 --bind 127.0.0.1     then open localhost:8767
 
 ## Not built yet
 
-
-- Portuguese and Spanish. All wording lives in `js/forms.js` and `js/app.js`.
-- A shared map of everyone's pins with photos, and charts. Team totals gives
-  the numbers; the map of all pins is the "Group's notes" button, without photos.
+- Other languages. All wording lives in `js/forms.js` and `js/app.js`.
+- A shared map of everyone's pins with photos (without the Google Sheet).
 - The written report (the tool kit's seven-part outline).
 - A record of the path walked. Useful for showing which blocks were covered,
-  but it raises privacy questions, so it is off the table until asked for.
+  but it raises privacy questions, so it waits until someone asks.

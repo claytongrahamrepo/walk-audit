@@ -66,9 +66,12 @@
   };
 
   function slug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); }
+  WA.slug = slug;
 
-  /* sessions: array; obs: all observations for those sessions. */
-  WA.exportZip = function (sessions, obs) {
+  /* sessions: array; obs: all observations for those sessions.
+   * opts.extra: more files to add; opts.name: the zip's file name. */
+  WA.exportZip = function (sessions, obs, opts) {
+    opts = opts || {};
     var live = obs.filter(function (o) { return !o.deleted; });
     var counts = {}; live.forEach(function (o) { counts[o.session_id] = (counts[o.session_id] || 0) + 1; });
     var files = [], long = [];
@@ -89,12 +92,12 @@
       { name: 'codebook.csv', data: utf8(WA.csv(codebook, ['column', 'meaning'])) }
     );
     var s0 = sessions[0];
-    var name = 'walk-audit_' + (slug(s0.code) || slug(WA.sessionName(s0)) || 'export') + '_' + WA.localDate(s0.started_at) + '.zip';
-    return { blob: WA.zip(files), name: name };
+    var name = opts.name || 'walk-audit_' + (slug(s0.code) || slug(WA.sessionName(s0)) || 'export') + '_' + WA.localDate(s0.started_at) + '.zip';
+    return { blob: WA.zip(files.concat(opts.extra || [])), name: name };
   };
 
-  /* Team totals as a zip of small CSV tables, for the report. */
-  WA.teamZip = function (code, T) {
+  /* Team totals as small CSV tables, for the report. */
+  WA.teamFiles = function (code, T) {
     var items = [], sheets = [];
     T.sheets.forEach(function (sh) {
       sheets.push({ worksheet: sh.title, yes: sh.yes, no: sh.no, other: sh.other, people_who_answered: sh.people });
@@ -122,7 +125,10 @@
       { name: 'team_signal_timing.csv', data: utf8(WA.csv(timing, ['measure', 'median_seconds', 'min_seconds', 'max_seconds', 'readings'])) },
       { name: 'team_map_notes.csv', data: utf8(WA.csv(notes, ['by', 'value', 'count'])) }
     ];
-    return { blob: WA.zip(files), name: 'walk-audit_team_' + (slug(code) || 'audit') + '_' + WA.localDate(new Date().toISOString()) + '.zip' };
+    return files;
+  };
+  WA.teamZip = function (code, T) {
+    return { blob: WA.zip(WA.teamFiles(code, T)), name: 'walk-audit_team_' + (slug(code) || 'audit') + '_' + WA.localDate(new Date().toISOString()) + '.zip' };
   };
 
   WA.download = function (blob, name) {

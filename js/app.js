@@ -28,7 +28,21 @@
   function linkParams() {
     var q; try { q = new URLSearchParams(location.search); } catch (e) { return {}; }
     function g(k) { return (q.get(k) || '').trim().slice(0, 120); }
-    return { code: g('code'), type: g('type'), place: g('place'), from: g('from'), to: g('to'), route: g('route'), community: g('community') };
+    return { code: g('code'), type: g('type'), place: g('place'), from: g('from'), to: g('to'), route: g('route'), community: g('community'), at: parseAt(g('at')) };
+  }
+  /* "lat,lon,zoom" from a link: where the map should open. */
+  function parseAt(str) {
+    var p = String(str || '').split(',').map(Number);
+    if (p.length < 2 || !isFinite(p[0]) || !isFinite(p[1]) || Math.abs(p[0]) > 90 || Math.abs(p[1]) > 180 || (!p[0] && !p[1])) return null;
+    return [p[0], p[1], isFinite(p[2]) && p[2] >= 3 && p[2] <= 19 ? Math.round(p[2]) : 16];
+  }
+  /* Where a map opens before the phone has found itself: the spot in the
+   * link, else the last place this phone was, else the whole country. */
+  function startView() {
+    if (S && S.map_at) return S.map_at;
+    try { var a = JSON.parse(ls('wa_lastpos') || 'null'); if (a && isFinite(a[0]) && isFinite(a[1])) return [a[0], a[1], 16]; } catch (e) {}
+    if (cfg.center) return [cfg.center[0], cfg.center[1], cfg.zoom || 14];
+    return [39.5, -98.35, 4];
   }
 
   /* ---------- saving ---------- */
@@ -78,6 +92,7 @@
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     wantGPS('map', isMap);
+    wantGPS('audit', inAudit);     // keep the phone's location warm so a note lands where the person stands
     if (isMap) return showMap();
     var sh = r.name === 'sheet' ? WA.sheet(r.arg) : null;
     if (r.name === 'setup') view.innerHTML = viewSetup(false);
@@ -96,7 +111,7 @@
   function viewSetup(edit) {
     var L = linkParams();
     var f = edit ? S : {
-      code: L.code, type: L.type === 'single' ? 'single' : 'route', community: L.community || cfg.community || '',
+      code: L.code, type: L.type === 'single' ? 'single' : 'route', community: L.community || ls('wa_community') || cfg.community || '',
       location: L.place, start_loc: L.from, end_loc: L.to, route: L.route, auditor: ls('wa_auditor') || ''
     };
     function inp(name, label, val, hint, ph) {
@@ -113,19 +128,19 @@
       '<label><input type="radio" name="type" value="route"' + (f.type !== 'single' ? ' checked' : '') + '><span><b>Walking route</b><small>Walk from one place to another</small></span></label>' +
       '<label><input type="radio" name="type" value="single"' + (f.type === 'single' ? ' checked' : '') + '><span><b>Single location</b><small>Watch one corner or block</small></span></label>' +
       '</div></fieldset>';
-    h += inp('community', 'Community', f.community);
+    h += inp('community', 'Community', f.community, '', 'City or town, and state');
     h += '<div class="only-route">' + inp('start_loc', 'Starting location', f.start_loc, '', 'e.g. City Hall') +
-      inp('end_loc', 'Ending location', f.end_loc, '', 'e.g. Weaver Library') +
-      inp('route', 'Route', f.route, 'Streets you will walk.', 'e.g. Taunton Ave to Grove Ave') + '</div>';
-    h += '<div class="only-single">' + inp('location', 'Location or street name(s)', f.location, '', 'e.g. Taunton Ave at Broadway') + '</div>';
-    h += inp('auditor', 'Your name or initials (optional)', f.auditor, 'Only so the organizers can ask you a follow-up question.');
-    h += inp('code', 'Audit code (optional)', f.code, 'Filled in if your organizer sent you a link.');
+      inp('end_loc', 'Ending location', f.end_loc, '', 'e.g. Main Street library') +
+      inp('route', 'Route', f.route, 'Streets you will walk.', 'e.g. Main St from 1st Ave to 5th Ave') + '</div>';
+    h += '<div class="only-single">' + inp('location', 'Location or street name(s)', f.location, '', 'e.g. Main St at 3rd Ave') + '</div>';
+    h += inp('auditor', 'Your name or initials (optional)', f.auditor, 'Shown on your copy, so a walk leader knows whose it is.');
+    h += inp('code', 'Audit code (optional)', f.code, 'Filled in if your walk leader sent you a link.');
     h += '<p class="err" id="setupErr" hidden></p>';
     h += '<button class="btn primary big" type="submit">' + (edit ? 'Save details' : 'Start audit') + '</button>';
     if (!edit) {
-      h += '<p class="fine">The date and time are recorded for you. Your answers save on this phone as you go, so a lost signal will not lose your work.' +
-        (WA.sync.on() ? ' They are also sent to the organizers’ shared sheet.' : '') +
-        ' Your location is recorded only when you add a map note.</p>' +
+      h += '<p class="fine">The date and time are recorded for you. Your answers save on this phone as you go, so a lost signal will not lose your work. ' +
+        (WA.sync.on() ? 'They are also sent to the organizers’ shared sheet. ' : 'Nothing is sent anywhere unless you send it. ') +
+        'If you allow it, the page uses your location so map notes land where you stand. A location is saved only when you add a map note.</p>' +
         '<p class="fine"><a href="#" data-act="m-ready">Before you go: how to plan and what to bring</a></p>' + aboutText();
     }
     return h + '</form>';
@@ -148,14 +163,15 @@
       err.textContent = f.type === 'single' ? 'Enter the location or street name.' : 'Enter the route, or both a starting and an ending location.';
       err.hidden = false; err.scrollIntoView({ block: 'center' }); return;
     }
-    ls('wa_auditor', f.auditor);
+    ls('wa_auditor', f.auditor); ls('wa_community', f.community);
     if (edit) {
       ['type', 'community', 'start_loc', 'end_loc', 'route', 'location', 'auditor', 'code'].forEach(function (k) { S[k] = f[k]; });
       OBS.forEach(function (o) { if (o.code !== S.code) { o.code = S.code; o.rev = (o.rev || 0) + 1; o.synced = false; WA.db.put('obs', o); } });
       touch(); saveNow(); go('#/'); return;
     }
     f.device_id = deviceId();
-    var s = WA.newSession(f);
+    var s = WA.newSession(f), at = linkParams().at;
+    if (at) s.map_at = at;
     saveNow().then(function () { return setActive(s); }).then(function () { return saveNow(); }).then(function () {
       refreshMarkers(); WA.sync.soon(2000); go('#/');
     });
@@ -300,7 +316,7 @@
   /* ---------- summary ---------- */
 
   function syncLine() {
-    if (!WA.sync.on()) return 'This copy is not connected to a shared sheet. Your work is saved on this phone only. Download it and send the file to the organizer.';
+    if (!WA.sync.on()) return 'Your work is saved on this phone. Nothing is sent anywhere unless you send it.';
     var st = WA.sync.status().state;
     if (st === 'sent' || st === 'idle') return 'Your work has been sent to the organizers’ shared sheet.';
     if (st === 'sending') return 'Sending to the shared sheet…';
@@ -323,27 +339,37 @@
       '<li><b>' + WA.countTotal(S) + '</b> people counted</li><li><b>' + WA.betterTotal(S) + '</b> improvements picked</li></ul>';
     h += ratingHTML('overall', 'Overall walkability (optional)');
     h += '<label class="fld"><span>Overall notes</span><small>What matters most here? What should be fixed first?</small><textarea rows="4" data-sheetnote="overall">' + esc(S.notes.overall || '') + '</textarea></label>';
-    h += '<button type="button" class="btn primary big" data-act="finish">' + (S.submitted ? 'Send again' : 'Finish audit') + '</button>';
-    if (S.submitted) h += '<p class="done">Finished at ' + WA.localTime(S.ended_at) + '. Thank you. You can still change answers; tap Send again after.</p>';
+    if (!S.submitted) h += '<button type="button" class="btn primary big" data-act="finish">Finish audit</button>';
+    else h += '<p class="done">Finished at ' + WA.localTime(S.ended_at) + '. Thank you. You can still change answers.</p>' +
+      (WA.sync.on() ? '<button type="button" class="btn big" data-act="finish">Send again</button>' : '');
     h += '<p class="note" id="syncLine">' + esc(syncLine()) + '</p>';
-    h += '<div class="row"><button type="button" class="btn" data-act="export">Download my data (zip)</button>' +
-      (WA.sync.on() && S.code ? '<a class="btn" href="#/team">Team totals</a>' : '') + '</div>';
+    h += '<h2>Keep a copy</h2><p class="hint">One file with your answers, notes and photos. Email or text it to yourself. If you walked with a group, send it to your walk leader too.</p>' +
+      '<button type="button" class="btn ' + (S.submitted ? 'primary ' : '') + 'big copybtn" data-act="copy">Send a copy</button>';
+    h += '<div class="row"><button type="button" class="btn" data-act="export">Download data tables (zip)</button><a class="btn" href="#/team">Team totals</a></div>';
     return h;
   }
 
   /* ---------- team totals ---------- */
 
   var team = { code: '', T: null, at: 0, err: '' };
-  function cleanCode(s) { return String(s || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 60); }
+  var combo = { sessions: [], obs: [], files: 0, skipped: [], own: true, T: null };   // files a walk leader has chosen
+  function cleanCode(str) { return String(str || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 60); }
   function teamCode(r) { return cleanCode(r.arg || (S && S.code) || linkParams().code); }
 
   function viewTeam(r) {
-    var code = teamCode(r);
     var h = '<a class="back" href="' + (S ? '#/summary' : '#/setup') + '">&lsaquo; ' + (S ? 'Summary' : 'Back') + '</a><h1>Team totals</h1>';
-    if (!WA.sync.on()) return h + '<p class="note">Team totals need the shared sheet, and this copy is not connected to one. Each person can still download their own data from the menu.</p>';
+    if (!WA.sync.on()) {
+      return h + '<p class="hint">For a walk leader. Ask each person to tap <b>Send a copy</b> and send you their file. Choose those files here to add everyone up. The files stay on this device; nothing is uploaded.</p>' +
+        '<input type="file" id="comboIn" accept=".html,.htm,text/html" multiple hidden>' +
+        '<div class="row"><button type="button" class="btn primary" data-act="combopick">' + (combo.files ? 'Add more files' : 'Choose files') + '</button>' +
+        (combo.files || combo.skipped.length ? '<button type="button" class="btn" data-act="comboreset">Start over</button>' : '') + '</div>' +
+        (S ? '<label class="pick slim"><input type="checkbox" id="comboOwn"' + (combo.own ? ' checked' : '') + '><span>Include my own audit on this phone</span></label>' : '') +
+        '<div id="teamBody">' + comboHTML() + '</div>';
+    }
+    var code = teamCode(r);
     h += '<form id="teamForm" class="codeRow"><label class="fld"><span>Audit code</span><input type="text" name="code" value="' + esc(code) + '" autocomplete="off" autocapitalize="none" spellcheck="false"></label>' +
       '<button class="btn" type="submit">Load</button></form>';
-    h += '<div id="teamBody">' + (code ? '<p class="loading">Adding up everyone\u2019s answers\u2026</p>' : '<p class="hint">Enter the audit code from your link.</p>') + '</div>';
+    h += '<div id="teamBody">' + (code ? '<p class="loading">Adding up everyone’s answers…</p>' : '<p class="hint">Enter the audit code from your link.</p>') + '</div>';
     if (code) setTimeout(function () { loadTeam(code); }, 0);
     return h;
   }
@@ -354,32 +380,94 @@
     WA.sync.flush().then(function () { return Promise.all([WA.sync.team(code), WA.sync.group(code)]); }).then(function (res) {
       team.T = WA.teamTotals(res[0], res[1]); team.at = Date.now();
     }).catch(function () {
-      team.err = 'Could not load the team\u2019s answers. Check your connection and try again.';
+      team.err = 'Could not load the team’s answers. Check your connection and try again.';
     }).then(function () {
       var b = $('#teamBody'), r = route();
       if (b && r.name === 'team' && teamCode(r) === code) b.innerHTML = teamHTML();
     });
   }
 
+  /* Totals read from the shared sheet. */
   function teamHTML() {
     var again = '<button type="button" class="btn small" data-act="teamreload">Refresh</button>';
     if (team.err) return '<p class="err">' + esc(team.err) + '</p>' + again;
-    var T = team.T, h = '';
+    var T = team.T;
     if (!T.people) return '<p class="note">No one has sent answers for the code <b>' + esc(team.code) + '</b> yet.</p>' + again;
+    return '<p class="teamhead"><b>' + plural(T.people, 'person', 'people') + '</b> ' + (T.people === 1 ? 'has' : 'have') + ' sent answers; ' + T.finished + ' tapped Finish. Loaded at ' +
+      WA.localTime(new Date(team.at).toISOString()) + '. ' + again + '</p>' + totalsHTML(T) +
+      '<button type="button" class="btn" data-act="teamexport">Download team totals (zip of CSVs)</button>' +
+      '<p class="fine">Names and written notes are not shown here. They are in the shared sheet, which only the organizers can open.</p>';
+  }
+
+  /* Totals from files the walk leader chose, worked out on this device. */
+  function comboData() {
+    var sessions = combo.sessions.slice(), obs = combo.obs.slice();
+    var ownIn = !!(S && combo.own && !sessions.some(function (x) { return x.id === S.id; }));
+    if (ownIn) { sessions.push(S); obs = obs.concat(OBS); }
+    return { sessions: sessions, obs: obs, ownIn: ownIn };
+  }
+
+  function comboHTML() {
+    var skipped = combo.skipped.length ? '<p class="note">Left out, because ' + (combo.skipped.length === 1 ? 'it is not a walk audit copy' : 'they are not walk audit copies') + ': ' + combo.skipped.map(esc).join(', ') + '.</p>' : '';
+    if (!combo.files) return '<p class="hint">No files chosen yet.</p>' + skipped;
+    var d = comboData(), counts = {}, names = [];
+    d.obs.forEach(function (o) { counts[o.session_id] = (counts[o.session_id] || 0) + 1; });
+    combo.T = WA.teamTotals(d.sessions.map(function (x) { return WA.sessionRow(x, counts[x.id] || 0); }), d.obs);
+    d.sessions.forEach(function (x) { var n = x.code || WA.sessionName(x); if (names.indexOf(n) < 0) names.push(n); });
+    return '<p class="teamhead"><b>' + plural(d.sessions.length, 'person', 'people') + '</b> in all: ' + plural(combo.sessions.length, 'copy', 'copies') + ' from the files you chose' + (d.ownIn ? ', plus your own audit' : '') + '.</p>' + skipped +
+      (names.length > 1 ? '<p class="note">These come from more than one audit, so the totals mix them: ' + names.map(esc).join('; ') + '.</p>' : '') +
+      totalsHTML(combo.T) +
+      '<button type="button" class="btn primary big" data-act="comboexport">Download the combined data (zip)</button>' +
+      '<p class="fine">The zip holds everyone’s answers, notes, map notes and photos as tables, plus these totals.</p>';
+  }
+
+  function readFiles(list) {
+    var files = Array.prototype.slice.call(list || []);
+    if (!files.length) return;
+    Promise.all(files.map(function (f) {
+      return new Promise(function (res) {
+        if (f.size > 80e6) return res({ name: f.name, err: 'too large' });
+        var fr = new FileReader();
+        fr.onload = function () { try { res({ name: f.name, data: WA.readReport(String(fr.result)) }); } catch (e) { res({ name: f.name, err: e.message }); } };
+        fr.onerror = function () { res({ name: f.name, err: 'could not be read' }); };
+        fr.readAsText(f);
+      });
+    })).then(function (out) {
+      var added = 0, updated = 0, bad = 0;
+      out.forEach(function (r) {
+        if (r.err) { bad++; if (combo.skipped.indexOf(r.name) < 0) combo.skipped.push(r.name); return; }
+        combo.files++;
+        r.data.sessions.forEach(function (x) {
+          var at = -1;
+          combo.sessions.forEach(function (y, k) { if (y.id === x.id) at = k; });
+          /* The same person may send a second copy after changing answers: keep the newer one. */
+          if (at >= 0 && (x.rev || 0) <= (combo.sessions[at].rev || 0)) return;
+          if (at >= 0) { combo.sessions[at] = x; combo.obs = combo.obs.filter(function (o) { return o.session_id !== x.id; }); updated++; }
+          else { combo.sessions.push(x); added++; }
+          r.data.obs.forEach(function (o) { if (o.session_id === x.id) combo.obs.push(o); });
+        });
+      });
+      var y = window.scrollY; render(); window.scrollTo(0, y);
+      toast(added ? 'Added ' + plural(added, 'person', 'people') : updated ? 'Replaced ' + plural(updated, 'older copy', 'older copies') + ' with the newer one' :
+        bad === out.length ? (bad === 1 ? 'That file is not a walk audit copy' : 'Those files are not walk audit copies') : 'Already added', 4000);
+    });
+  }
+
+  /* The tables, shared by both kinds of team totals. */
+  function totalsHTML(T) {
+    var h = '';
     function td(n) { return '<td' + (n ? '' : ' class="z"') + '>' + n + '</td>'; }
-    h += '<p class="teamhead"><b>' + plural(T.people, 'person', 'people') + '</b> ' + (T.people === 1 ? 'has' : 'have') + ' sent answers; ' + T.finished + ' tapped Finish. Loaded at ' +
-      WA.localTime(new Date(team.at).toISOString()) + '. ' + again + '</p>';
     h += '<p class="hint">These add up what people recorded. Ratings are opinions, so look at how they spread; do not boil them down to one average.</p>';
 
     /* Worksheets nobody used are left out, and named once below, to keep this short. */
-    var rated = T.ratings.filter(function (d) { return d.n; }), answered = T.sheets.filter(function (s) { return s.people; });
-    var unused = T.sheets.filter(function (s) { return !s.people && !T.ratings.some(function (d) { return d.id === s.id && d.n; }); });
+    var rated = T.ratings.filter(function (d) { return d.n; }), answered = T.sheets.filter(function (x) { return x.people; });
+    var unused = T.sheets.filter(function (x) { return !x.people && !T.ratings.some(function (d) { return d.id === x.id && d.n; }); });
     h += '<h2>Ratings</h2>' + (rated.length ? '<table class="sum"><thead><tr><th>Worksheet</th><th>Great</th><th>Accept.</th><th>Mixed</th><th>Poor</th></tr></thead><tbody>' +
       rated.map(function (d) { return '<tr><th>' + esc(d.title) + '</th>' + td(d.great) + td(d.acceptable) + td(d.mixed) + td(d.poor) + '</tr>'; }).join('') + '</tbody></table>' : '<p class="hint">No one has given a rating yet.</p>');
 
     h += '<h2>Answers</h2>' + (answered.length ? '<table class="sum"><thead><tr><th>Worksheet</th><th>Yes</th><th>No</th><th>Other</th><th>People</th></tr></thead><tbody>' +
-      answered.map(function (s) { return '<tr><th>' + esc(s.title) + '</th>' + td(s.yes) + td(s.no) + td(s.other) + td(s.people) + '</tr>'; }).join('') + '</tbody></table>' : '<p class="hint">No one has answered a checklist yet.</p>');
-    if (unused.length && unused.length < T.sheets.length) h += '<p class="fine">Not used by anyone: ' + unused.map(function (s) { return esc(s.title); }).join(', ') + '.</p>';
+      answered.map(function (x) { return '<tr><th>' + esc(x.title) + '</th>' + td(x.yes) + td(x.no) + td(x.other) + td(x.people) + '</tr>'; }).join('') + '</tbody></table>' : '<p class="hint">No one has answered a checklist yet.</p>');
+    if (unused.length && unused.length < T.sheets.length) h += '<p class="fine">Not used by anyone: ' + unused.map(function (x) { return esc(x.title); }).join(', ') + '.</p>';
 
     if (T.flagged.length) {
       var top = T.flagged.slice(0, 10), anyNeg = top.some(function (c) { return c.neg; });
@@ -387,10 +475,9 @@
         top.map(function (c) { return '<li><b>' + c.concern + ' of ' + c.answered + '</b> said ' + (c.neg ? 'Yes' : 'No') + ': ' + esc(c.sheet) + ' ' + c.n + '. ' + esc(c.text) + '</li>'; }).join('') + '</ol>';
     }
 
-    var used = T.sheets.filter(function (s) { return s.people; });
-    if (used.length) h += '<h2>Every item</h2>' + used.map(function (s) {
-      return '<details><summary>' + esc(s.title) + '</summary><table class="sum items"><thead><tr><th>Item</th><th>Yes</th><th>No</th><th>Other</th></tr></thead><tbody>' +
-        s.sections.map(function (sec) {
+    if (answered.length) h += '<h2>Every item</h2>' + answered.map(function (x) {
+      return '<details><summary>' + esc(x.title) + '</summary><table class="sum items"><thead><tr><th>Item</th><th>Yes</th><th>No</th><th>Other</th></tr></thead><tbody>' +
+        x.sections.map(function (sec) {
           return '<tr class="sec"><th colspan="4">' + esc(sec.title) + '</th></tr>' + sec.items.map(function (c) {
             return '<tr><th>' + c.n + '. ' + esc(c.text) + '</th>' + td(c.yes) + td(c.no) + td(c.other) + '</tr>';
           }).join('');
@@ -402,7 +489,7 @@
     }).join('') + '</ul>';
 
     var cs = T.counts.filter(function (c) { return c.total > 0; });
-    if (cs.length) h += '<h2>Counts</h2><p class="hint">If several people counted the same spot at the same time, these totals count the same passers-by more than once. In that case use one person\u2019s count, from the sheet.</p>' +
+    if (cs.length) h += '<h2>Counts</h2><p class="hint">If several people counted the same spot at the same time, these totals count the same passers-by more than once. In that case use one person’s count.</p>' +
       '<table class="sum"><thead><tr><th>Counter</th><th>Total</th><th>Counted by</th></tr></thead><tbody>' +
       cs.map(function (c) { return '<tr><th>' + esc(c.text) + '</th>' + td(c.total) + td(c.by) + '</tr>'; }).join('') + '</tbody></table>';
 
@@ -412,10 +499,37 @@
     var topics = Object.keys(T.obs.topics).sort(function (a, b) { return T.obs.topics[b] - T.obs.topics[a]; });
     h += '<h2>Map notes</h2><p><b>' + T.obs.total + '</b> in all: ' + (T.obs.kinds.problem || 0) + ' problem, ' + (T.obs.kinds.good || 0) + ' good, ' + (T.obs.kinds.idea || 0) + ' idea.' +
       (topics.length ? ' By topic: ' + topics.map(function (k) { return esc(topicLabel(k) || k) + ' ' + T.obs.topics[k]; }).join(', ') + '.' : '') + '</p>';
-
-    h += '<button type="button" class="btn" data-act="teamexport">Download team totals (zip of CSVs)</button>' +
-      '<p class="fine">Names and written notes are not shown here. They are in the shared sheet, which only the organizers can open.</p>';
     return h;
+  }
+
+  /* ---------- finishing, copies and downloads ---------- */
+
+  var copy = null;     // the prepared file, waiting for the person to tap Share
+
+  /* Two steps on purpose. Phones only allow sharing straight from a tap, so
+   * the file is built first and the Share button is a fresh tap. */
+  function openCopy() {
+    if (!S) return;
+    modal.innerHTML = '<div class="sheet"><div class="mhead"><h1>Send a copy</h1><button type="button" class="x" data-act="closemodal" aria-label="Close">&times;</button></div>' +
+      '<div class="mbody" id="copyBody"><p class="loading">Getting your copy ready…</p></div></div>';
+    modal.hidden = false; document.body.classList.add('modal-open');
+    var mine = S;
+    saveNow().then(function () { return WA.db.all('obs'); }).then(function (all) {
+      var obs = all.filter(function (o) { return o.session_id === mine.id && !o.deleted; });
+      var html = WA.reportHTML(mine, obs), name = WA.reportName(mine), file = null;
+      try { file = new File([html], name, { type: 'text/html' }); } catch (e) {}
+      var can = false;
+      try { can = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) {}
+      copy = { html: html, name: name, file: file, can: can, title: 'Walk audit: ' + WA.sessionName(mine), text: WA.reportText(mine, obs) };
+      var mb = html.length / 1e6, b = $('#copyBody'); if (!b) return;
+      b.innerHTML = '<p>Your copy is ready: one file with your answers, notes and ' + plural(obs.filter(function (o) { return o.photo; }).length, 'photo', 'photos') +
+        ' (' + (mb < 0.1 ? 'under 0.1' : mb.toFixed(1)) + ' MB). It opens in any web browser.</p>' +
+        (mb > 20 ? '<p class="note">This file is large. Many email services refuse attachments over 25 MB. A text message, AirDrop or a file-sharing app may work better.</p>' : '') +
+        (can ? '<button type="button" class="btn primary big" data-act="copyshare">Share it (email, text…)</button>' +
+          '<p class="fine">Pick Mail or Messages and send it to yourself. If you walked with a group, send it to your walk leader too.</p>'
+          : '<p class="note">This browser cannot hand a file to your mail app. Save the file, then attach it to an email or text yourself.</p>') +
+        '<button type="button" class="btn big" data-act="copysave">Save the file on this ' + (can ? 'phone' : 'device') + '</button>';
+    }).catch(function () { var b = $('#copyBody'); if (b) b.innerHTML = '<p class="err">Could not make the copy. Try Download data tables instead.</p>'; });
   }
 
   function finish() {
@@ -423,7 +537,7 @@
     touch();
     saveNow().then(function () {
       render();
-      if (!WA.sync.on()) { toast('Saved on this phone.'); return; }
+      if (!WA.sync.on()) { openCopy(); return; }       // no shared sheet: offer the person their copy straight away
       WA.sync.flush().then(function () {
         var st = WA.sync.status().state;
         toast(st === 'sent' || st === 'idle' ? 'Sent. Thank you.' : 'Saved. It will send when you are online.', 4000);
@@ -443,18 +557,30 @@
 
   /* ---------- location ---------- */
 
-  function wantGPS(who, on) {
-    if (on) gpsReasons[who] = 1; else delete gpsReasons[who];
-    var any = Object.keys(gpsReasons).length > 0;
+  var lastPosSaved = 0, gpsBlocked = false;
+  function gpsRefresh() {
     if (!navigator.geolocation) { gpsErr = 'unsupported'; return; }
-    if (any && watchId == null) {
+    var any = Object.keys(gpsReasons).length > 0 && !document.hidden;      // never watch while the page is in the background
+    if (any && watchId == null && !gpsBlocked) {
       watchId = navigator.geolocation.watchPosition(function (p) {
         gps = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() };
-        gpsErr = ''; drawMe(); if (draft) draftFix();
-      }, function (e) { gpsErr = e.code === 1 ? 'denied' : 'unavailable'; if (draft) draftFix(); },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+        gpsErr = '';
+        /* Remember roughly where this phone was (to about 100 m) so the map opens nearby next time. Kept on the phone only. */
+        if (Date.now() - lastPosSaved > 30000) { lastPosSaved = Date.now(); ls('wa_lastpos', JSON.stringify([Math.round(gps.lat * 1000) / 1000, Math.round(gps.lon * 1000) / 1000])); }
+        drawMe(); if (draft) draftFix(); if ($('#lkHere')) buildLink();
+      }, function (e) {
+        if (e.code === 1) {
+          /* Refused. Stop asking until the person does something that needs it. */
+          gpsErr = 'denied'; gpsBlocked = true;
+          if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+        } else gpsErr = 'unavailable';
+        if (draft) draftFix(); if ($('#lkHere')) buildLink();
+      }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
     } else if (!any && watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   }
+  function wantGPS(who, on) { if (on) gpsReasons[who] = 1; else delete gpsReasons[who]; gpsRefresh(); }
+  /* Try again after a refusal: the person may have turned location on in settings since. */
+  function gpsRetry() { if (gpsBlocked) { gpsBlocked = false; gpsErr = ''; gpsRefresh(); } }
   function freshGPS() { return gps && Date.now() - gps.t < 30000 ? gps : null; }
 
   /* ---------- map ---------- */
@@ -474,18 +600,36 @@
   }
   function topicLabel(t) { for (var i = 0; i < WA.TOPICS.length; i++) if (WA.TOPICS[i][0] === t) return WA.TOPICS[i][1]; return ''; }
 
+  var follow = true;     // keep the map centered on the person as they walk, until they drag it
+  function setFollow(on) { follow = on; var b = $('#followBtn'); if (b) b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+
   function showMap() {
-    if (!map) { map = newMap('map', cfg.center || [41.8137, -71.3701], cfg.zoom || 14); drawMe(); }
+    if (!map) {
+      var sv = startView();
+      map = newMap('map', [sv[0], sv[1]], sv[2]);
+      map.on('dragstart', function () { setFollow(false); });
+      drawMe();
+    }
     $('#groupBtn').hidden = !(WA.sync.on() && S && S.code);
+    $('#allBtn').hidden = !OBS.length;
+    setFollow(follow);
     setTimeout(function () {
       map.invalidateSize();
       refreshMarkers();
       if (!centered) {
-        var pts = OBS.filter(function (o) { return o.lat != null; }).map(function (o) { return [o.lat, o.lon]; });
-        if (pts.length) { map.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 18 }); centered = true; }
-        else if (freshGPS()) { map.setView([gps.lat, gps.lon], 17); centered = true; }
-      }
+        centered = true;
+        if (freshGPS()) { setFollow(true); map.setView([gps.lat, gps.lon], 18); }
+        else if (!fitNotes()) { var v = startView(); map.setView([v[0], v[1]], v[2]); setFollow(true); }
+      } else if (follow && freshGPS()) map.setView([gps.lat, gps.lon], Math.max(map.getZoom(), 17));
     }, 30);
+  }
+
+  function fitNotes() {
+    var pts = OBS.filter(function (o) { return o.lat != null; }).map(function (o) { return [o.lat, o.lon]; });
+    if (!map || !pts.length) return false;
+    setFollow(false);
+    map.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 18 });
+    return true;
   }
 
   function refreshMarkers() {
@@ -507,13 +651,14 @@
       meRing = L.circle(ll, { radius: gps.acc, color: '#1d4ed8', weight: 1, fillOpacity: 0.08, interactive: false }).addTo(map);
       meDot = L.circleMarker(ll, { radius: 7, color: '#fff', weight: 2, fillColor: '#1d4ed8', fillOpacity: 1, interactive: false }).addTo(map);
     } else { meDot.setLatLng(ll); meRing.setLatLng(ll); meRing.setRadius(gps.acc); }
-    if (!centered && route().name === 'map' && !OBS.length) { map.setView(ll, 17); centered = true; }
+    if (follow && route().name === 'map' && modal.hidden) { if (map.getZoom() < 17) map.setView(ll, 18); else map.panTo(ll); }
   }
 
   function locate() {
-    if (freshGPS()) { map.setView([gps.lat, gps.lon], Math.max(map.getZoom(), 17)); return; }
-    toast(gpsErr === 'denied' ? 'Location is turned off for this page. You can still place pins by hand.' :
-      gpsErr ? 'Your phone could not find its location.' : 'Finding your location…', 4000);
+    setFollow(true); gpsRetry();
+    if (freshGPS()) { map.setView([gps.lat, gps.lon], Math.max(map.getZoom(), 18)); return; }
+    toast(gpsErr === 'denied' ? 'Location is turned off for this page. Allow it in your phone’s settings, then reload.' :
+      gpsErr ? 'Your phone could not find its location.' : 'Finding your location…', 5000);
   }
 
   function toggleGroup() {
@@ -552,32 +697,36 @@
       draft.topic = WA.ITEM_TOPIC[opt.item] || WA.SHEET_TOPIC[opt.sheet] || '';
     }
     var info = draft.item ? WA.findItem(draft.item) : null;
-    var h = '<div class="sheet"><div class="mhead"><h1>' + (ex ? 'Edit map note' : 'New map note') + '</h1><button type="button" class="x" data-act="closemodal" aria-label="Close">&times;</button></div><div class="mbody">';
+    var h = '<div class="sheet"><div class="mhead"><h1>' + (ex ? 'Edit map note' : 'Note at this spot') + '</h1><button type="button" class="x" data-act="closemodal" aria-label="Close">&times;</button></div><div class="mbody">';
     if (info) h += '<p class="about">About: <b>' + esc(info.sheet.title) + '</b> — ' + esc(info.item.t) + '</p>';
+    /* Where comes first and fills itself in from the phone. The person only touches the map if the pin is wrong. */
+    h += '<div class="where wait" id="whereBox"><b id="locHead"></b><small id="locMsg"></small><div id="pinMap"></div>' +
+      '<button type="button" class="btn small" data-act="usegps" id="useGps" hidden>Use my location now</button></div>';
     h += '<div class="fld"><span>What is it?</span>' + chips('data-draft="kind"', WA.KINDS.map(function (k) { return [k.v, k.l]; }), function (v) { return draft.kind === v; }) + '</div>';
     h += '<div class="fld"><span>Photo</span><div id="photoBox"></div>' +
       '<input type="file" accept="image/*" capture="environment" id="camIn" hidden><input type="file" accept="image/*" id="libIn" hidden></div>';
     h += '<div class="fld"><span>Topic</span>' + chips('data-draft="topic"', WA.TOPICS, function (v) { return draft.topic === v; }) + '</div>';
     h += '<label class="fld"><span>Note</span><textarea id="obsNote" rows="3" placeholder="What is here? Who does it affect?">' + esc(draft.note) + '</textarea></label>';
-    h += '<div class="fld"><span>Where</span><small id="locMsg"></small><div id="pinMap"></div>' +
-      '<button type="button" class="btn small" data-act="usegps">Use my location</button></div>';
     h += '<p class="fine">Avoid faces and license plates in photos where you can.</p></div>';
     h += '<div class="mfoot">' + (ex ? '<button type="button" class="btn danger" data-act="delobs">Delete</button>' : '<button type="button" class="btn" data-act="closemodal">Cancel</button>') +
       '<button type="button" class="btn primary" data-act="saveobs">Save note</button></div></div>';
     modal.innerHTML = h; modal.hidden = false; document.body.classList.add('modal-open');
     drawPhoto();
-    var start = draft.lat != null ? [draft.lat, draft.lon] : freshGPS() ? [gps.lat, gps.lon] : map ? [map.getCenter().lat, map.getCenter().lng] : (cfg.center || [41.8137, -71.3701]);
-    var pm = newMap('pinMap', start, draft.lat != null || freshGPS() ? 18 : (map ? map.getZoom() : cfg.zoom || 14));
+    var sv = startView(), g = freshGPS();
+    var start = draft.lat != null ? [draft.lat, draft.lon] : g ? [g.lat, g.lon] : map ? [map.getCenter().lat, map.getCenter().lng] : [sv[0], sv[1]];
+    var pm = newMap('pinMap', start, draft.lat != null || g ? 18 : (map ? map.getZoom() : sv[2]));
     draft.pm = pm;
     pm.on('click', function (e) { placePin(e.latlng.lat, e.latlng.lng, 'pin', null, false); });
     if (draft.lat != null) placePin(draft.lat, draft.lon, draft.src, draft.acc, false);
-    setTimeout(function () { pm.invalidateSize(); }, 60);
+    setTimeout(function () { if (draft && draft.pm) draft.pm.invalidateSize(); }, 60);
+    if (!ex) gpsRetry();
     wantGPS('obs', true);
     draftFix();
   }
 
   function placePin(lat, lon, src, acc, recenter) {
     draft.lat = lat; draft.lon = lon; draft.src = src; draft.acc = acc;
+    if (src === 'pin') draft.locked = false;
     if (!draft.marker) {
       draft.marker = L.marker([lat, lon], { draggable: true, autoPan: true }).addTo(draft.pm);
       draft.marker.on('dragend', function () { var p = draft.marker.getLatLng(); placePin(p.lat, p.lng, 'pin', null, false); });
@@ -587,21 +736,29 @@
   }
 
   /* Take the phone's position unless the person has placed the pin by hand.
-   * After the first fix, move only if accuracy improves a lot, so the pin
-   * does not wander while they type. */
+   * While the fix is rough (worse than about 15 m) take any better one. Once
+   * it is good, move only for a much better fix, so the pin does not wander
+   * while they type or walk on. */
   function draftFix() {
     if (!draft) return;
     var g = freshGPS();
-    if (g && !draft.locked && (draft.src === '' || (draft.src === 'gps' && g.acc < (draft.acc || 1e9) * 0.7))) placePin(g.lat, g.lon, 'gps', g.acc, true);
+    if (g && !draft.locked && (draft.src === '' || (draft.src === 'gps' && (g.acc < draft.acc * 0.7 || (draft.acc > 15 && g.acc < draft.acc))))) placePin(g.lat, g.lon, 'gps', g.acc, true);
     locMsg();
   }
 
   function locMsg() {
-    var el = $('#locMsg'); if (!el || !draft) return;
-    if (draft.src === 'gps') el.textContent = 'Using your location (within about ' + Math.round(draft.acc) + ' m). Drag the pin if it is off.';
-    else if (draft.src === 'pin') el.textContent = 'Pin placed by hand. Drag it or tap the map to move it.';
-    else if (gpsErr) el.textContent = 'Your location is not available. Tap the map to place the pin.';
-    else el.textContent = 'Finding your location… or tap the map to place the pin.';
+    var box = $('#whereBox'); if (!box || !draft) return;
+    var head, msg, cls = 'ok', m = Math.round(draft.acc || 0);
+    if (draft.src === 'gps' && draft.locked) { head = 'Where you stood'; msg = 'From your phone' + (draft.acc != null ? ', within about ' + m + ' m' : '') + '. Drag the pin to correct it.'; }
+    else if (draft.src === 'gps' && draft.acc <= 15) { head = 'At your location'; msg = 'Within about ' + m + ' m. Drag the pin only if it is off.'; }
+    else if (draft.src === 'gps') { head = 'At your location, roughly'; msg = 'Within about ' + m + ' m. Stand still a few seconds for a better fix, or drag the pin.'; cls = 'warn'; }
+    else if (draft.src === 'pin') { head = 'Pin placed by hand'; msg = 'Drag it or tap the map to move it.'; }
+    else if (gpsErr === 'denied') { head = 'Location is turned off'; msg = 'Tap the map to place the pin. To use your location, allow it for this page in your phone’s settings, then reload. On an iPhone: Settings > Privacy & Security > Location Services > Safari Websites.'; cls = 'warn'; }
+    else if (gpsErr) { head = 'Can’t find your location'; msg = 'Tap the map to place the pin.'; cls = 'warn'; }
+    else { head = 'Finding your location…'; msg = 'Stand still for a moment. Or tap the map to place the pin.'; cls = 'wait'; }
+    box.className = 'where ' + cls;
+    $('#locHead').textContent = head; $('#locMsg').textContent = msg;
+    $('#useGps').hidden = !(draft.src === 'pin' || draft.locked) || !!gpsErr;
   }
 
   function drawPhoto() {
@@ -652,24 +809,26 @@
       if (draft.purl) URL.revokeObjectURL(draft.purl);
       draft = null; wantGPS('obs', false);
     }
+    copy = null; wantGPS('link', false);
     modal.hidden = true; modal.innerHTML = ''; document.body.classList.remove('modal-open');
   }
 
   function saveObs() {
     var note = ($('#obsNote').value || '').trim().slice(0, 2000);
-    if (draft.lat == null) { toast('Tap the map to place the pin first.', 4000); $('#pinMap').scrollIntoView({ block: 'center' }); return; }
+    if (draft.lat == null) { toast(gpsErr ? 'Tap the map to place the pin first.' : 'Still finding your location. Wait a moment, or tap the map.', 4000); $('#pinMap').scrollIntoView({ block: 'center' }); return; }
     var o = draft.ex || { id: WA.uid(), session_id: S.id, code: S.code, created_at: new Date().toISOString() };
     o.kind = draft.kind; o.topic = draft.topic; o.note = note; o.item = draft.item;
     o.lat = draft.lat; o.lon = draft.lon; o.acc = draft.src === 'gps' ? draft.acc : null; o.src = draft.src;
     if (draft.photoChanged) { o.photo = draft.photo; o.photo_sent = false; }
     o.rev = (o.rev || 0) + 1; o.synced = false;
-    var isNew = !draft.ex;
+    var isNew = !draft.ex, byPhone = draft.src === 'gps';
     WA.db.put('obs', o).then(function () {
       if (isNew) OBS.push(o);
       closeModal(); refreshMarkers(); afterObsChange(o.item);
       if (map && route().name === 'map' && !map.getBounds().contains([o.lat, o.lon])) map.panTo([o.lat, o.lon]);
       touch(); WA.sync.soon(1500);
-      toast('Map note saved');
+      $('#allBtn').hidden = !OBS.length;
+      toast(isNew && byPhone ? 'Saved at your location' : 'Map note saved');
     }).catch(function () { toast('Could not save. Your phone may be out of space.', 6000); });
   }
 
@@ -696,9 +855,12 @@
     var h = '<div class="sheet"><div class="mhead"><h1>' + (panel === 'link' ? 'Make an audit link' : panel === 'past' ? 'Audits on this phone' : panel === 'about' ? 'About' : panel === 'ready' ? 'Before you go' : 'Menu') +
       '</h1><button type="button" class="x" data-act="closemodal" aria-label="Close">&times;</button></div><div class="mbody" id="menuBody">';
     if (panel === 'about') {
-      h += '<p>A paperless walk audit form for ' + esc(cfg.community || 'your community') + '. Version ' + WA.VERSION + '.</p>' + aboutText() +
-        '<p class="fine">What is recorded: your answers, your notes and photos, the place of each map note, the time, and your name only if you typed it. Photos stay with the organizers and are not shown to other participants.</p>' +
-        '<p class="fine">Map data &copy; OpenStreetMap contributors.</p>';
+      h += '<p>A paperless walk audit form for any community. Version ' + WA.VERSION + '.</p>' + aboutText() +
+        '<p class="fine"><b>What is recorded:</b> your answers, your notes and photos, the place of each map note, the time, and your name only if you typed it.</p>' +
+        '<p class="fine"><b>Where it goes:</b> ' + (WA.sync.on() ? 'it is saved on this phone and sent to the organizers’ shared sheet. Photos are not shown to other participants.' :
+          'nowhere, unless you send it. It is saved on this phone. Nobody else has a copy until you tap Send a copy and send it to them.') + '</p>' +
+        '<p class="fine"><b>Your location:</b> the page watches it while open, if you allow it, so notes land where you stand. It is saved only with a map note.</p>' +
+        '<p class="fine">Map data &copy; OpenStreetMap contributors. Map pictures are fetched from OpenStreetMap as you move the map.</p>';
     } else if (panel === 'ready') {
       h += '<h2 class="first">Plan it</h2><ul class="tips">' +
         '<li><b>Where.</b> One corner or block is easier to finish and act on. A route covers more.</li>' +
@@ -709,32 +871,39 @@
         '<h2>Bring</h2><ul class="tips"><li>This phone, charged</li><li>A tape measure (sidewalks should be about 5 feet wide)</li>' +
         '<li>Water and a snack</li><li>Clothes and shoes for the weather; hat and sunscreen</li><li>A bright shirt or safety vest</li>' +
         '<li>A flashlight if it may get dark</li><li>A folding seat if you will watch one spot</li></ul>' +
-        '<h2>On the walk</h2><ul class="tips"><li>Photograph good features as well as problems.</li>' +
+        '<h2>On the walk</h2><ul class="tips"><li>Turn on location for this page, so each note lands where you stand.</li>' +
+        '<li>Photograph good features as well as problems.</li>' +
         '<li>Photos to get: crossing signals, traffic lights, turning lanes, curb ramps, sidewalks, crosswalks and stop lines, lighting.</li>' +
-        '<li>Video is not saved here. Use your camera app and send clips to the organizer.</li></ul>' +
+        '<li>Video is not saved here. Use your camera app and send clips to your walk leader.</li></ul>' +
+        '<h2>After</h2><ul class="tips"><li>Tap Finish, then Send a copy. Send it to yourself and to your walk leader.</li>' +
+        '<li>Walk leader: open Team totals and choose everyone’s files to add them up.</li></ul>' +
         '<p class="fine">Adapted from the steps in the AARP Walk Audit Tool Kit.</p>';
     } else if (panel === 'link') {
       var L = linkParams();
-      h += '<p class="hint">For organizers. Fill this in once, then send everyone the same link. The audit code groups their answers together.</p>' +
-        '<label class="fld"><span>Audit code</span><small>Short, no spaces.</small><input type="text" id="lkCode" value="' + esc(L.code || 'ep-' + WA.localDate(new Date().toISOString())) + '"></label>' +
+      h += '<p class="hint">For a walk leader. Fill this in once, then send everyone the same link. It fills in the details for them.</p>' +
+        '<label class="fld"><span>Community</span><input type="text" id="lkCom" value="' + esc((S && S.community) || ls('wa_community') || L.community || '') + '" placeholder="City or town, and state"></label>' +
+        '<label class="fld"><span>Audit code</span><small>Short, no spaces. It marks which audit a copy belongs to.</small><input type="text" id="lkCode" value="' + esc(L.code || 'walk-' + WA.localDate(new Date().toISOString())) + '"></label>' +
         '<div class="fld"><span>Kind</span>' + chips('id="lkType"', [['route', 'Walking route'], ['single', 'Single location']], function (v) { return v === 'route'; }) + '</div>' +
         '<label class="fld"><span>Start (route) or location (single)</span><input type="text" id="lkA"></label>' +
         '<label class="fld"><span>End (route only)</span><input type="text" id="lkB"></label>' +
         '<label class="fld"><span>Route (route only)</span><input type="text" id="lkR"></label>' +
+        '<label class="pick slim"><input type="checkbox" id="lkHere"><span>Open everyone’s map where I am standing now<small>Tick this only when you are on the route. It puts your current location in the link.</small></span></label>' +
+        '<p class="fine" id="lkAt"></p>' +
         '<label class="fld"><span>Link for participants</span><textarea id="lkOut" rows="4" readonly></textarea></label>' +
         '<div class="row"><button type="button" class="btn primary" data-act="copylink">Copy link</button><button type="button" class="btn" data-act="sharelink">Share</button></div>' +
-        '<label class="fld results"><span>Link to the team totals</span><small>For you. It adds up everyone\u2019s answers for this code.</small><textarea id="lkTeam" rows="2" readonly></textarea></label>';
+        (WA.sync.on() ? '<label class="fld results"><span>Link to the team totals</span><small>For you. It adds up everyone’s answers for this code.</small><textarea id="lkTeam" rows="2" readonly></textarea></label>' : '');
     } else if (panel === 'past') {
       h += '<p class="loading">Loading&hellip;</p>';
     } else {
       h += '<div class="menu">' +
-        (S ? '<button type="button" data-act="m-details">Edit audit details</button><button type="button" data-act="m-export">Download my data (zip)</button>' : '') +
+        (S ? '<button type="button" data-act="m-copy">Send a copy</button><button type="button" data-act="m-details">Edit audit details</button>' : '') +
         '<button type="button" data-act="m-ready">Before you go: plan and what to bring</button>' +
-        (WA.sync.on() ? '<button type="button" data-act="m-team">Team totals</button>' : '') +
+        '<button type="button" data-act="m-team">Team totals<small>' + (WA.sync.on() ? 'Everyone’s answers added up' : 'For a walk leader: combine everyone’s files') + '</small></button>' +
+        '<button type="button" data-act="m-link">Make an audit link<small>For a walk leader</small></button>' +
         '<button type="button" data-act="m-new">Start a new audit</button>' +
         '<button type="button" data-act="m-past">Audits on this phone</button>' +
+        (S ? '<button type="button" data-act="m-export">Download data tables (zip)</button>' : '') +
         '<button type="button" data-act="m-big">' + (big ? 'Normal text size' : 'Larger text') + '</button>' +
-        '<button type="button" data-act="m-link">Make an audit link (organizers)</button>' +
         '<button type="button" data-act="m-about">About and privacy</button></div>';
     }
     h += '</div></div>';
@@ -743,9 +912,9 @@
     if (panel === 'past') WA.db.all('sessions').then(function (all) {
       all.sort(function (a, b) { return a.started_at < b.started_at ? 1 : -1; });
       var b = $('#menuBody'); if (!b) return;
-      b.innerHTML = all.length ? '<div class="menu">' + all.map(function (s) {
-        return '<button type="button" data-act="m-open" data-id="' + s.id + '"><b>' + esc(WA.sessionName(s)) + '</b><small>' + WA.localDate(s.started_at) + ' ' + WA.localTime(s.started_at) +
-          (s.submitted ? ' · finished' : ' · not finished') + (S && S.id === s.id ? ' · open now' : '') + '</small></button>';
+      b.innerHTML = all.length ? '<div class="menu">' + all.map(function (x) {
+        return '<button type="button" data-act="m-open" data-id="' + x.id + '"><b>' + esc(WA.sessionName(x)) + '</b><small>' + WA.localDate(x.started_at) + ' ' + WA.localTime(x.started_at) +
+          (x.submitted ? ' · finished' : ' · not finished') + (S && S.id === x.id ? ' · open now' : '') + '</small></button>';
       }).join('') + '</div><button type="button" class="btn" data-act="m-exportall">Download all of them (zip)</button>' : '<p>No audits yet.</p>';
     });
   }
@@ -754,11 +923,16 @@
     var out = $('#lkOut'); if (!out) return;
     var on = $('#lkType [aria-pressed="true"]'), type = on ? on.getAttribute('data-v') : 'route';
     var q = new URLSearchParams();
-    var code = $('#lkCode').value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+    var com = $('#lkCom').value.trim(), code = cleanCode($('#lkCode').value);
+    if (com) q.set('community', com);
     if (code) q.set('code', code);
     q.set('type', type);
     var a = $('#lkA').value.trim(), b = $('#lkB').value.trim(), r = $('#lkR').value.trim();
     if (type === 'single') { if (a) q.set('place', a); } else { if (a) q.set('from', a); if (b) q.set('to', b); if (r) q.set('route', r); }
+    /* The leader's location goes in the link only if they tick the box. */
+    var here = $('#lkHere').checked, g = freshGPS(), note = $('#lkAt');
+    if (here && g) { q.set('at', g.lat.toFixed(4) + ',' + g.lon.toFixed(4) + ',17'); note.textContent = 'The map will open near ' + g.lat.toFixed(3) + ', ' + g.lon.toFixed(3) + '.'; }
+    else note.textContent = here ? (gpsErr ? 'Your location is not available, so the link has no map position.' : 'Finding your location…') : 'Without it, each person’s map opens at their own location.';
     out.value = location.origin + location.pathname + '?' + q.toString();
     var tl = $('#lkTeam'); if (tl) tl.value = code ? location.origin + location.pathname + '#/team/' + code : '';
   }
@@ -799,6 +973,28 @@
     teamreload: function () { var b = $('#teamBody'); if (b) b.innerHTML = '<p class="loading">Adding up everyone\u2019s answers\u2026</p>'; loadTeam(team.code); },
     teamexport: function () { if (!team.T) return; var z = WA.teamZip(team.code, team.T); WA.download(z.blob, z.name); toast('Saved ' + z.name, 5000); },
     'm-team': function () { closeModal(); go('#/team'); },
+    'm-copy': function () { closeModal(); openCopy(); },
+    copy: openCopy,
+    copyshare: function () {
+      if (!copy || !copy.can) return;
+      navigator.share({ title: copy.title, text: copy.text, files: [copy.file] }).then(function () { closeModal(); toast('Shared'); })
+        .catch(function (e) { if (!e || e.name !== 'AbortError') toast('Sharing did not work. Save the file instead.', 5000); });
+    },
+    copysave: function () {
+      if (!copy) return;
+      WA.download(new Blob([copy.html], { type: 'text/html' }), copy.name);
+      toast('Saved ' + copy.name + '. Attach it to an email or text to send it.', 7000);
+    },
+    combopick: function () { $('#comboIn').click(); },
+    comboreset: function () { combo = { sessions: [], obs: [], files: 0, skipped: [], own: combo.own, T: null }; render(); },
+    comboexport: function () {
+      var d = comboData(); if (!d.sessions.length || !combo.T) return;
+      var code = d.sessions[0].code || '';
+      var z = WA.exportZip(d.sessions, d.obs, { name: 'walk-audit_combined_' + (WA.slug(code) || 'team') + '_' + WA.localDate(new Date().toISOString()) + '.zip',
+        extra: WA.teamFiles(code, combo.T).map(function (f) { return { name: 'team/' + f.name, data: f.data }; }) });
+      WA.download(z.blob, z.name); toast('Saved ' + z.name, 5000);
+    },
+    allnotes: function () { if (!fitNotes()) toast('No map notes yet'); },
     timer: function (t) {
       if (tm && tm.btn === t) return stopTimer(true);
       stopTimer(true);
@@ -819,6 +1015,7 @@
     lib: function () { $('#libIn').click(); },
     nophoto: function () { draft.photo = null; draft.photoChanged = true; drawPhoto(); },
     usegps: function () {
+      gpsRetry();
       var g = freshGPS();
       if (g) { draft.locked = false; placePin(g.lat, g.lon, 'gps', g.acc, true); }
       else { draft.locked = false; if (draft.src !== 'pin') draft.src = ''; locMsg(); toast(gpsErr ? 'Your location is not available. Tap the map instead.' : 'Still finding your location…'); }
@@ -909,6 +1106,9 @@
   function onChange(e) {
     var t = e.target;
     if (t.id === 'camIn' || t.id === 'libIn') { gotPhoto(t.files && t.files[0]); t.value = ''; return; }
+    if (t.id === 'comboIn') { readFiles(t.files); t.value = ''; return; }
+    if (t.id === 'comboOwn') { combo.own = t.checked; var tb = $('#teamBody'); if (tb) tb.innerHTML = comboHTML(); return; }
+    if (t.id === 'lkHere') { if (t.checked) gpsRetry(); wantGPS('link', t.checked); buildLink(); return; }
     if (t.name === 'type' && t.form && t.form.id === 'setup') { t.form.className = t.value === 'single' ? 't-single' : 't-route'; return; }
     if (t.hasAttribute && t.hasAttribute('data-bb') && S) { if (t.checked) S.better[t.getAttribute('data-bb')] = 1; else delete S.better[t.getAttribute('data-bb')]; touch(); }
   }
@@ -936,7 +1136,7 @@
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
     window.addEventListener('hashchange', function () { if (!modal.hidden) closeModal(); render(); });
-    document.addEventListener('visibilitychange', function () { if (document.hidden) { saveNow(); WA.sync.flush(); } });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) { saveNow(); WA.sync.flush(); } gpsRefresh(); });
     window.addEventListener('pagehide', function () { saveNow(); });
     WA.sync.active = function () { return S; };
     WA.sync.onObsSynced = function (cur) {

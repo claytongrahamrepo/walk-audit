@@ -1,9 +1,9 @@
 /* Lets the form open with no signal once it has been opened once.
  * Network first, so people get updates; the saved copy is the fallback.
  * Map tiles are not saved. Without a signal the map is blank but pins still work. */
-var CACHE = 'walk-audit-v3';
+var CACHE = 'walk-audit-v4';
 var CORE = ['./', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest',
-  'js/forms.js', 'js/data.js', 'js/store.js', 'js/sync.js', 'js/export.js', 'js/app.js',
+  'js/forms.js', 'js/data.js', 'js/store.js', 'js/sync.js', 'js/export.js', 'js/report.js', 'js/app.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   'vendor/leaflet/images/marker-icon.png', 'vendor/leaflet/images/marker-icon-2x.png', 'vendor/leaflet/images/marker-shadow.png',
   'icons/icon.svg', 'icons/icon-192.png'];

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Walk Audit</title>
-<meta name="description" content="A paperless walk audit form. Record sidewalk and crossing conditions on your phone.">
+<meta name="description" content="A paperless walk audit form for any community. Record sidewalk and crossing conditions on your phone.">
 <meta name="theme-color" content="#14532d">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -24,7 +24,8 @@
 <div id="mapWrap" hidden>
   <div id="map" aria-label="Map of your notes"></div>
   <div id="mapTools">
-    <button type="button" class="mapbtn" data-act="locate">My location</button>
+    <button type="button" class="mapbtn" data-act="locate" id="followBtn" aria-pressed="true">Follow me</button>
+    <button type="button" class="mapbtn" data-act="allnotes" id="allBtn" hidden>All notes</button>
     <button type="button" class="mapbtn" data-act="group" id="groupBtn" hidden aria-pressed="false">Group&rsquo;s notes</button>
   </div>
   <div id="mapLegend">
@@ -37,7 +38,7 @@
 <nav id="tabs" hidden aria-label="Sections">
   <a href="#/" data-tab="home">Worksheets</a>
   <a href="#/map" data-tab="map">Map</a>
-  <button type="button" id="addBtn" data-act="add"><span>+ Map note</span></button>
+  <button type="button" id="addBtn" data-act="add"><span>+ Note here</span></button>
   <a href="#/summary" data-tab="summary">Summary</a>
 </nav>
 
@@ -53,6 +54,7 @@
 <script src="js/store.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/export.js"></script>
+<script src="js/report.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

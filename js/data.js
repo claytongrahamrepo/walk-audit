@@ -4,7 +4,7 @@
 (function () {
   'use strict';
   var WA = window.WA = window.WA || {};
-  WA.VERSION = '0.3.0';
+  WA.VERSION = '0.4.0';
 
   WA.uid = function () {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
