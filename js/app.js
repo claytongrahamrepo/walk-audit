@@ -123,6 +123,9 @@
     else {
       h += '<h1>Walk audit</h1><p class="lead">Use this instead of paper worksheets. You look at the street, answer short questions, and mark problem spots on a map.</p>';
       if (S) h += '<p class="note">You have an audit in progress: <b>' + esc(WA.sessionName(S)) + '</b>. <a href="#/">Go back to it</a>, or start a new one below. The old one stays on this phone.</p>';
+      /* A link from a walk leader fills in the route. Say so, because a filled-in form can look like someone else's audit. */
+      if (L.code || L.place || L.from || L.to || L.route || L.community) h += '<p class="note">The details below came from the link you opened. This is a new, empty audit of your own. ' +
+        (WA.sync.on() ? 'Your answers are saved on this device and sent to the organizers’ shared sheet.' : 'Your answers are saved on this device only. No one else sees them unless you send them a copy.') + '</p>';
     }
     h += '<fieldset class="fld"><legend>What kind of audit?</legend><div class="choice2">' +
       '<label><input type="radio" name="type" value="route"' + (f.type !== 'single' ? ' checked' : '') + '><span><b>Walking route</b><small>Walk from one place to another</small></span></label>' +
