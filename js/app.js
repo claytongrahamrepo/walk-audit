@@ -47,7 +47,7 @@
 
   /* ---------- saving ---------- */
 
-  function saveNow() { clearTimeout(saveTimer); saveTimer = null; return S ? WA.db.put('sessions', S).catch(function () { toast('Could not save on this phone. Check free space.', 6000); }) : Promise.resolve(); }
+  function saveNow() { clearTimeout(saveTimer); saveTimer = null; return S ? WA.db.put('sessions', S).catch(function () { toast('Could not save on this device. Check free space.', 6000); }) : Promise.resolve(); }
   function touch() {
     if (!S) return;
     S.rev++; S.updated_at = new Date().toISOString();
@@ -122,7 +122,7 @@
     if (edit) h += '<a class="back" href="#/">&lsaquo; Back</a><h1>Audit details</h1>';
     else {
       h += '<h1>Walk audit</h1><p class="lead">Use this instead of paper worksheets. You look at the street, answer short questions, and mark problem spots on a map.</p>';
-      if (S) h += '<p class="note">You have an audit in progress: <b>' + esc(WA.sessionName(S)) + '</b>. <a href="#/">Go back to it</a>, or start a new one below. The old one stays on this phone.</p>';
+      if (S) h += '<p class="note">You have an audit in progress: <b>' + esc(WA.sessionName(S)) + '</b>. <a href="#/">Go back to it</a>, or start a new one below. The old one stays on this device.</p>';
       /* A link from a walk leader fills in the route. Say so, because a filled-in form can look like someone else's audit. */
       if (L.code || L.place || L.from || L.to || L.route || L.community) h += '<p class="note">The details below came from the link you opened. This is a new, empty audit of your own. ' +
         (WA.sync.on() ? 'Your answers are saved on this device and sent to the organizers’ shared sheet.' : 'Your answers are saved on this device only. No one else sees them unless you send them a copy.') + '</p>';
@@ -141,7 +141,7 @@
     h += '<p class="err" id="setupErr" hidden></p>';
     h += '<button class="btn primary big" type="submit">' + (edit ? 'Save details' : 'Start audit') + '</button>';
     if (!edit) {
-      h += '<p class="fine">The date and time are recorded for you. Your answers save on this phone as you go, so a lost signal will not lose your work. ' +
+      h += '<p class="fine">The date and time are recorded for you. Your answers save on this device as you go, so a lost signal will not lose your work. ' +
         (WA.sync.on() ? 'They are also sent to the organizers’ shared sheet. ' : 'Nothing is sent anywhere unless you send it. ') +
         'If you allow it, the page uses your location so map notes land where you stand. A location is saved only when you add a map note.</p>' +
         '<p class="fine"><a href="#" data-act="m-ready">Before you go: how to plan and what to bring</a></p>' + aboutText();
@@ -203,8 +203,8 @@
   function viewHome() {
     var h = '<section class="head"><h1>' + esc(WA.sessionName(S)) + '</h1><p class="muted">' +
       (S.type === 'single' ? 'Single-location audit' : 'Walking audit') + (S.community ? ' · ' + esc(S.community) : '') +
-      ' · started ' + WA.localTime(S.started_at) + ' <a href="#/details">Edit</a></p></section>';
-    h += '<p class="hint">Use the worksheets that fit this walk and skip the rest. Your work saves as you go.</p><ul class="sheets">';
+      ' · started ' + (WA.localDate(S.started_at) === WA.localDate(new Date().toISOString()) ? '' : WA.localDate(S.started_at) + ' ') + WA.localTime(S.started_at) + ' <a href="#/details">Edit</a></p></section>';
+    h += '<p class="hint">Use the worksheets that fit this walk and skip the rest. Your work saves as you go' + (WA.sync.on() ? '.' : ', on this device only.') + '</p><ul class="sheets">';
     WA.SHEETS.forEach(function (sh, i) {
       var href = sh.kind === 'map' ? '#/map' : sh.kind === 'summary' ? '#/summary' : '#/sheet/' + sh.id;
       h += '<li><a href="' + href + '" class="' + (started(sh) ? 'on' : '') + '"><span class="num">' + (i + 1) + '</span><span class="tx"><b>' + esc(sh.title) +
@@ -319,12 +319,12 @@
   /* ---------- summary ---------- */
 
   function syncLine() {
-    if (!WA.sync.on()) return 'Your work is saved on this phone. Nothing is sent anywhere unless you send it.';
+    if (!WA.sync.on()) return 'Your work is saved on this device. Nothing is sent anywhere unless you send it.';
     var st = WA.sync.status().state;
     if (st === 'sent' || st === 'idle') return 'Your work has been sent to the organizers’ shared sheet.';
     if (st === 'sending') return 'Sending to the shared sheet…';
-    if (st === 'waiting') return 'No connection. Your work is saved on this phone and will send when you are back online. Keep this page open, or reopen it later.';
-    return 'Could not reach the shared sheet. Your work is saved on this phone and will be retried.';
+    if (st === 'waiting') return 'No connection. Your work is saved on this device and will send when you are back online. Keep this page open, or reopen it later.';
+    return 'Could not reach the shared sheet. Your work is saved on this device and will be retried.';
   }
 
   function viewSummary() {
@@ -366,7 +366,7 @@
         '<input type="file" id="comboIn" accept=".html,.htm,text/html" multiple hidden>' +
         '<div class="row"><button type="button" class="btn primary" data-act="combopick">' + (combo.files ? 'Add more files' : 'Choose files') + '</button>' +
         (combo.files || combo.skipped.length ? '<button type="button" class="btn" data-act="comboreset">Start over</button>' : '') + '</div>' +
-        (S ? '<label class="pick slim"><input type="checkbox" id="comboOwn"' + (combo.own ? ' checked' : '') + '><span>Include my own audit on this phone</span></label>' : '') +
+        (S ? '<label class="pick slim"><input type="checkbox" id="comboOwn"' + (combo.own ? ' checked' : '') + '><span>Include my own audit on this device</span></label>' : '') +
         '<div id="teamBody">' + comboHTML() + '</div>';
     }
     var code = teamCode(r);
@@ -531,7 +531,7 @@
         (can ? '<button type="button" class="btn primary big" data-act="copyshare">Share it (email, text…)</button>' +
           '<p class="fine">Pick Mail or Messages and send it to yourself. If you walked with a group, send it to your walk leader too.</p>'
           : '<p class="note">This browser cannot hand a file to your mail app. Save the file, then attach it to an email or text yourself.</p>') +
-        '<button type="button" class="btn big" data-act="copysave">Save the file on this ' + (can ? 'phone' : 'device') + '</button>';
+        '<button type="button" class="btn big" data-act="copysave">Save the file on this device</button>';
     }).catch(function () { var b = $('#copyBody'); if (b) b.innerHTML = '<p class="err">Could not make the copy. Try Download data tables instead.</p>'; });
   }
 
@@ -660,8 +660,8 @@
   function locate() {
     setFollow(true); gpsRetry();
     if (freshGPS()) { map.setView([gps.lat, gps.lon], Math.max(map.getZoom(), 18)); return; }
-    toast(gpsErr === 'denied' ? 'Location is turned off for this page. Allow it in your phone’s settings, then reload.' :
-      gpsErr ? 'Your phone could not find its location.' : 'Finding your location…', 5000);
+    toast(gpsErr === 'denied' ? 'Location is turned off for this page. Allow it in your device’s settings, then reload.' :
+      gpsErr ? 'This device could not find its location.' : 'Finding your location…', 5000);
   }
 
   function toggleGroup() {
@@ -752,11 +752,11 @@
   function locMsg() {
     var box = $('#whereBox'); if (!box || !draft) return;
     var head, msg, cls = 'ok', m = Math.round(draft.acc || 0);
-    if (draft.src === 'gps' && draft.locked) { head = 'Where you stood'; msg = 'From your phone' + (draft.acc != null ? ', within about ' + m + ' m' : '') + '. Drag the pin to correct it.'; }
+    if (draft.src === 'gps' && draft.locked) { head = 'Where you stood'; msg = 'From this device\u2019s location' + (draft.acc != null ? ', within about ' + m + ' m' : '') + '. Drag the pin to correct it.'; }
     else if (draft.src === 'gps' && draft.acc <= 15) { head = 'At your location'; msg = 'Within about ' + m + ' m. Drag the pin only if it is off.'; }
     else if (draft.src === 'gps') { head = 'At your location, roughly'; msg = 'Within about ' + m + ' m. Stand still a few seconds for a better fix, or drag the pin.'; cls = 'warn'; }
     else if (draft.src === 'pin') { head = 'Pin placed by hand'; msg = 'Drag it or tap the map to move it.'; }
-    else if (gpsErr === 'denied') { head = 'Location is turned off'; msg = 'Tap the map to place the pin. To use your location, allow it for this page in your phone’s settings, then reload. On an iPhone: Settings > Privacy & Security > Location Services > Safari Websites.'; cls = 'warn'; }
+    else if (gpsErr === 'denied') { head = 'Location is turned off'; msg = 'Tap the map to place the pin. To use your location, allow it for this page in your device’s settings, then reload. On an iPhone: Settings > Privacy & Security > Location Services > Safari Websites.'; cls = 'warn'; }
     else if (gpsErr) { head = 'Can’t find your location'; msg = 'Tap the map to place the pin.'; cls = 'warn'; }
     else { head = 'Finding your location…'; msg = 'Stand still for a moment. Or tap the map to place the pin.'; cls = 'wait'; }
     box.className = 'where ' + cls;
@@ -832,7 +832,7 @@
       touch(); WA.sync.soon(1500);
       $('#allBtn').hidden = !OBS.length;
       toast(isNew && byPhone ? 'Saved at your location' : 'Map note saved');
-    }).catch(function () { toast('Could not save. Your phone may be out of space.', 6000); });
+    }).catch(function () { toast('Could not save. This device may be out of space.', 6000); });
   }
 
   function delObs() {
@@ -855,13 +855,13 @@
 
   function openMenu(panel) {
     var big = document.documentElement.classList.contains('big');
-    var h = '<div class="sheet"><div class="mhead"><h1>' + (panel === 'link' ? 'Make an audit link' : panel === 'past' ? 'Audits on this phone' : panel === 'about' ? 'About' : panel === 'ready' ? 'Before you go' : 'Menu') +
+    var h = '<div class="sheet"><div class="mhead"><h1>' + (panel === 'link' ? 'Make an audit link' : panel === 'past' ? 'Audits on this device' : panel === 'about' ? 'About' : panel === 'ready' ? 'Before you go' : 'Menu') +
       '</h1><button type="button" class="x" data-act="closemodal" aria-label="Close">&times;</button></div><div class="mbody" id="menuBody">';
     if (panel === 'about') {
       h += '<p>A paperless walk audit form for any community. Version ' + WA.VERSION + '.</p>' + aboutText() +
         '<p class="fine"><b>What is recorded:</b> your answers, your notes and photos, the place of each map note, the time, and your name only if you typed it.</p>' +
-        '<p class="fine"><b>Where it goes:</b> ' + (WA.sync.on() ? 'it is saved on this phone and sent to the organizers’ shared sheet. Photos are not shown to other participants.' :
-          'nowhere, unless you send it. It is saved on this phone. Nobody else has a copy until you tap Send a copy and send it to them.') + '</p>' +
+        '<p class="fine"><b>Where it goes:</b> ' + (WA.sync.on() ? 'it is saved on this device and sent to the organizers’ shared sheet. Photos are not shown to other participants.' :
+          'nowhere, unless you send it. It is saved on this device, in this browser. Another phone or computer that opens the same link starts its own empty audit. Nobody else has a copy until you tap Send a copy and send it to them.') + '</p>' +
         '<p class="fine"><b>Your location:</b> the page watches it while open, if you allow it, so notes land where you stand. It is saved only with a map note.</p>' +
         '<p class="fine">Map data &copy; OpenStreetMap contributors. Map pictures are fetched from OpenStreetMap as you move the map.</p>';
     } else if (panel === 'ready') {
@@ -904,7 +904,7 @@
         '<button type="button" data-act="m-team">Team totals<small>' + (WA.sync.on() ? 'Everyone’s answers added up' : 'For a walk leader: combine everyone’s files') + '</small></button>' +
         '<button type="button" data-act="m-link">Make an audit link<small>For a walk leader</small></button>' +
         '<button type="button" data-act="m-new">Start a new audit</button>' +
-        '<button type="button" data-act="m-past">Audits on this phone</button>' +
+        '<button type="button" data-act="m-past">Audits on this device</button>' +
         (S ? '<button type="button" data-act="m-export">Download data tables (zip)</button>' : '') +
         '<button type="button" data-act="m-big">' + (big ? 'Normal text size' : 'Larger text') + '</button>' +
         '<button type="button" data-act="m-about">About and privacy</button></div>';
@@ -1118,7 +1118,7 @@
 
   function syncUI(st) {
     var el = $('#syncState'); if (!el) return;
-    var txt = { off: 'Saved on phone', idle: 'Saved', sending: 'Sending…', sent: 'Sent ✓', waiting: 'Offline · saved', error: 'Not sent yet' }[st.state] || '';
+    var txt = { off: 'Saved on this device', idle: 'Saved', sending: 'Sending…', sent: 'Sent ✓', waiting: 'Offline · saved', error: 'Not sent yet' }[st.state] || '';
     el.textContent = S ? txt : ''; el.className = st.state; el.title = st.error || '';
     clearTimeout(retryTimer);
     if (st.state === 'error') retryTimer = setTimeout(WA.sync.flush, 60000);
@@ -1157,7 +1157,7 @@
       var L = linkParams();
       /* A link for a different audit than the one open: offer to start the new one. */
       if (S && L.code && L.code !== S.code && route().name === 'home') location.hash = '#/setup';
-      if (WA.db.memoryOnly()) toast('This browser is not saving to the phone (private mode?). Keep this page open until you finish.', 8000);
+      if (WA.db.memoryOnly()) toast('This browser is not saving to this device (private mode?). Keep this page open until you finish.', 8000);
       render(); syncUI(WA.sync.status()); WA.sync.flush();
     });
 
